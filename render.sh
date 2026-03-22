@@ -15,6 +15,20 @@ echo "Format:     $FORMAT"
 echo "Excalidraw: $EXCALIDRAW_URL"
 echo "Workspace:  $WORKSPACE"
 
+echo "Waiting for Excalidraw to be ready..."
+for i in $(seq 1 60); do
+  if wget -q --spider "${EXCALIDRAW_URL}" 2>/dev/null; then
+    echo "Excalidraw ready (attempt $i)"
+    break
+  fi
+  if [ "$i" -eq 60 ]; then
+    echo "ERROR: Excalidraw did not become ready in time"
+    exit 1
+  fi
+  echo "  attempt $i/60..."
+  sleep 3
+done
+
 case "$FORMAT" in
   svg|png|both) ;;
   *)
