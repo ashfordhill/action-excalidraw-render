@@ -1,0 +1,38 @@
+name: 'Excalidraw Render'
+description: 'Recursively scan a repository for .excalidraw files and render them to SVG and/or PNG, then commit the results.'
+author: 'action-excalidraw-render'
+
+branding:
+  icon: 'image'
+  color: 'purple'
+
+inputs:
+  format:
+    description: 'Output format: svg, png, or both'
+    required: false
+    default: 'svg'
+  github-token:
+    description: 'GitHub token used to commit the rendered files back to the repository'
+    required: true
+  commit-message:
+    description: 'Commit message for the rendered files'
+    required: false
+    default: 'chore: render excalidraw files [skip ci]'
+  committer-name:
+    description: 'Name to use for the git committer'
+    required: false
+    default: 'github-actions[bot]'
+  committer-email:
+    description: 'Email to use for the git committer'
+    required: false
+    default: 'github-actions[bot]@users.noreply.github.com'
+
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  env:
+    INPUT_FORMAT: ${{ inputs.format }}
+    INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
+    INPUT_COMMIT_MESSAGE: ${{ inputs.commit-message }}
+    INPUT_COMMITTER_NAME: ${{ inputs.committer-name }}
+    INPUT_COMMITTER_EMAIL: ${{ inputs.committer-email }}

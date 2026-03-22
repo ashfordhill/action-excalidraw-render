@@ -1,0 +1,36 @@
+name: Render Excalidraw
+
+on:
+  push:
+    paths:
+      - '**/*.excalidraw'
+      - '.github/workflows/excalidraw-render.yml'
+  workflow_dispatch:
+    inputs:
+      format:
+        description: 'Output format'
+        required: false
+        default: 'svg'
+        type: choice
+        options:
+          - svg
+          - png
+          - both
+
+permissions:
+  contents: write
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Render Excalidraw files
+        uses: ./
+        with:
+          format: ${{ inputs.format || 'svg' }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
