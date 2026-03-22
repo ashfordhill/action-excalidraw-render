@@ -64,6 +64,7 @@ do_convert() {
     --format "$FMT" \
     -o "$OUTPUT" \
     --url "$EXCALIDRAW_URL"
+  chown "$(stat -c %u:%g "$INPUT")" "$OUTPUT"
 }
 
 while IFS= read -r FILE; do
