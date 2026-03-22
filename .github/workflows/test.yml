@@ -1,0 +1,41 @@
+name: Self-Test
+
+on:
+  push:
+    branches-ignore: [main]
+    paths:
+      - '**/*.excalidraw'
+      - 'action.yml'
+      - 'Dockerfile'
+      - 'render.sh'
+      - '.github/workflows/test.yml'
+  workflow_dispatch:
+    inputs:
+      format:
+        description: 'Output format'
+        required: false
+        default: 'both'
+        type: choice
+        options:
+          - svg
+          - png
+          - both
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Render Excalidraw files
+        uses: ./
+        with:
+          format: ${{ inputs.format || 'both' }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'test: render excalidraw files [skip ci]'
