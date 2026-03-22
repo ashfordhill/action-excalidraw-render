@@ -4,13 +4,7 @@ Recursively scan a repository for `.excalidraw` files and auto-render them to `.
 
 ![test](./test.svg)
 
-## Usage
 
-```yaml
-- uses: ashfordhill/action-excalidraw-render@main
-  with:
-    format: 'svg'   # svg | png | both  (default: svg)
-```
 
 ### Inputs
 
@@ -20,7 +14,7 @@ Recursively scan a repository for `.excalidraw` files and auto-render them to `.
 
 ## Workflow example
 
-Triggers on any push that modifies a `.excalidraw` file or the workflow file itself. The action renders the files; a separate step commits them back.
+This workflow triggers on any push that modifies a `.excalidraw` file, then commits the rendered output.
 
 ```yaml
 # .github/workflows/excalidraw-render.yml
@@ -30,15 +24,6 @@ on:
   push:
     paths:
       - '**/*.excalidraw'
-      - '.github/workflows/excalidraw-render.yml'
-  workflow_dispatch:
-    inputs:
-      format:
-        description: 'Output format'
-        required: false
-        default: 'svg'
-        type: choice
-        options: [svg, png, both]
 
 permissions:
   contents: write
@@ -48,12 +33,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: ashfordhill/action-excalidraw-render@main
         with:
-          format: ${{ inputs.format || 'svg' }}
+          format: 'svg'
 
       - name: Commit rendered files
         run: |
@@ -66,14 +49,7 @@ jobs:
 
 ## How it works
 
-1. The action spins up two Docker containers on an isolated network:
-   - **`excalidraw/excalidraw`** — a self-hosted Excalidraw nginx instance
-   - **Renderer** — a Node.js container running [`excalidraw-brute-export-cli`](https://github.com/NicklasHugoy/excalidraw-brute-export-cli) with a headless Firefox (Playwright)
-2. The renderer waits for Excalidraw to become healthy, then recursively finds all `*.excalidraw` files in the workspace (skipping `.git`, `node_modules`).
-3. Each file is uploaded to the local Excalidraw instance via the browser, exported as SVG/PNG through the UI, and saved alongside the source file.
-4. The containers and network are torn down. The workflow step then commits the generated files.
-
-> The `[skip ci]` suffix in the default commit message prevents the render job from triggering itself in a loop.
+The action runs a local, self-hosted Excalidraw instance in Docker. It uses a headless browser (Playwright) to load each `.excalidraw` file, export it to the desired format, and save it next to the original. This all happens offline on the runner.
 
 ## Local testing
 
