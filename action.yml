@@ -32,62 +32,89 @@ runs:
   steps:
     - name: Create isolated Docker network
       shell: bash
-      run: docker network create excalidraw-net-${{ github.run_id }} || true
+      env:
+        RUN_ID: ${{ github.run_id }}
+      run: docker network create "excalidraw-net-${RUN_ID}" || true
 
     - name: Start self-hosted Excalidraw
       shell: bash
+      env:
+        RUN_ID: ${{ github.run_id }}
       run: |
         docker run -d \
-          --name excalidraw-app-${{ github.run_id }} \
-          --network excalidraw-net-${{ github.run_id }} \
-          excalidraw/excalidraw:latest
+          --name "excalidraw-app-${RUN_ID}" \
+          --network "excalidraw-net-${RUN_ID}" \
+          excalidraw/excalidraw@sha256:3c2513e830bb6e195147c05b34ecf8393d0ba2b1cc86e93b407a5777d6135c6c
 
     - name: Wait for Excalidraw to be ready
       shell: bash
+      env:
+        RUN_ID: ${{ github.run_id }}
       run: |
         echo "Waiting for Excalidraw..."
         for i in $(seq 1 60); do
-          if docker exec excalidraw-app-${{ github.run_id }} \
+          if docker exec "excalidraw-app-${RUN_ID}" \
                wget -q --spider http://localhost:80 2>/dev/null; then
             echo "Excalidraw is ready (attempt $i)"
             break
           fi
           if [ "$i" -eq 60 ]; then
             echo "Timed out waiting for Excalidraw"
-            docker logs excalidraw-app-${{ github.run_id }}
+            docker logs "excalidraw-app-${RUN_ID}"
             exit 1
           fi
           echo "  attempt $i/60..."
           sleep 3
         done
 
-    - name: Build renderer image
+    - name: Pull or build renderer image
       shell: bash
+      env:
+        RUN_ID: ${{ github.run_id }}
+        ACTION_REPO: ${{ github.action_repository }}
+        ACTION_PATH: ${{ github.action_path }}
       run: |
-        docker build \
-          -t excalidraw-renderer-${{ github.run_id }} \
-          ${{ github.action_path }}
+        GHCR_IMAGE="ghcr.io/${ACTION_REPO}/renderer:latest"
+        LOCAL_TAG="excalidraw-renderer-${RUN_ID}"
+        if docker pull "${GHCR_IMAGE}" 2>/dev/null; then
+          docker tag "${GHCR_IMAGE}" "${LOCAL_TAG}"
+          echo "Using pre-built image from GHCR"
+        else
+          echo "GHCR image not available, building locally..."
+          docker build -t "${LOCAL_TAG}" "${ACTION_PATH}"
+        fi
 
     - name: Run renderer
       shell: bash
+      env:
+        RUN_ID: ${{ github.run_id }}
+        INPUT_FORMAT: ${{ inputs.format }}
+        INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
+        INPUT_COMMIT_MESSAGE: ${{ inputs.commit-message }}
+        INPUT_COMMITTER_NAME: ${{ inputs.committer-name }}
+        INPUT_COMMITTER_EMAIL: ${{ inputs.committer-email }}
+        WORKSPACE: ${{ github.workspace }}
+        GITHUB_REPO: ${{ github.repository }}
       run: |
         docker run --rm \
-          --network excalidraw-net-${{ github.run_id }} \
-          -e EXCALIDRAW_BRUTE_EXPORT_CLI_URL=http://excalidraw-app-${{ github.run_id }}:80 \
-          -e INPUT_FORMAT=${{ inputs.format }} \
-          -e INPUT_GITHUB_TOKEN=${{ inputs.github-token }} \
-          -e INPUT_COMMIT_MESSAGE="${{ inputs.commit-message }}" \
-          -e INPUT_COMMITTER_NAME="${{ inputs.committer-name }}" \
-          -e INPUT_COMMITTER_EMAIL="${{ inputs.committer-email }}" \
-          -e GITHUB_WORKSPACE=/workspace \
-          -e GITHUB_REPOSITORY=${{ github.repository }} \
-          -v ${{ github.workspace }}:/workspace \
-          excalidraw-renderer-${{ github.run_id }}
+          --network "excalidraw-net-${RUN_ID}" \
+          -e "EXCALIDRAW_BRUTE_EXPORT_CLI_URL=http://excalidraw-app-${RUN_ID}:80" \
+          -e "INPUT_FORMAT=${INPUT_FORMAT}" \
+          -e "INPUT_GITHUB_TOKEN=${INPUT_GITHUB_TOKEN}" \
+          -e "INPUT_COMMIT_MESSAGE=${INPUT_COMMIT_MESSAGE}" \
+          -e "INPUT_COMMITTER_NAME=${INPUT_COMMITTER_NAME}" \
+          -e "INPUT_COMMITTER_EMAIL=${INPUT_COMMITTER_EMAIL}" \
+          -e "GITHUB_WORKSPACE=/workspace" \
+          -e "GITHUB_REPOSITORY=${GITHUB_REPO}" \
+          -v "${WORKSPACE}:/workspace" \
+          "excalidraw-renderer-${RUN_ID}"
 
     - name: Cleanup
       if: always()
       shell: bash
+      env:
+        RUN_ID: ${{ github.run_id }}
       run: |
-        docker rm -f excalidraw-app-${{ github.run_id }} || true
-        docker rmi excalidraw-renderer-${{ github.run_id }} || true
-        docker network rm excalidraw-net-${{ github.run_id }} || true
+        docker rm -f "excalidraw-app-${RUN_ID}" || true
+        docker rmi "excalidraw-renderer-${RUN_ID}" || true
+        docker network rm "excalidraw-net-${RUN_ID}" || true

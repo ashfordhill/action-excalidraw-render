@@ -10,11 +10,13 @@ RUN apt-get -y update && \
     apt-get -y autoremove && \
     rm -rf /var/lib/apt/lists/*
 
-RUN npx --yes playwright install-deps firefox
-
 RUN npm install -g excalidraw-brute-export-cli@0.4.0
 
-RUN npx playwright install firefox
+RUN node /usr/local/lib/node_modules/excalidraw-brute-export-cli/node_modules/.bin/playwright \
+      install-deps firefox
+
+RUN node /usr/local/lib/node_modules/excalidraw-brute-export-cli/node_modules/.bin/playwright \
+      install firefox
 
 COPY render.sh /render.sh
 RUN sed -i 's/\r$//' /render.sh && chmod +x /render.sh

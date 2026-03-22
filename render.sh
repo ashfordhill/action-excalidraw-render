@@ -23,21 +23,24 @@ case "$FORMAT" in
     ;;
 esac
 
-FILES=$(find "$WORKSPACE" \
-  \( -path "*/.git" -o -path "*/node_modules" -o -path "*/.zenflow" \) -prune -o \
-  -name "*.excalidraw" -type f -print)
+FIND_LIST=$(mktemp)
+CHANGED_LIST=$(mktemp)
+trap 'rm -f "$FIND_LIST" "$CHANGED_LIST"' EXIT
 
-if [ -z "$FILES" ]; then
+find "$WORKSPACE" \
+  \( -path "*/.git" -o -path "*/node_modules" -o -path "*/.zenflow" \) -prune -o \
+  -name "*.excalidraw" -type f -print \
+  > "$FIND_LIST"
+
+if [ ! -s "$FIND_LIST" ]; then
   echo "No .excalidraw files found."
   exit 0
 fi
 
 echo ""
 echo "Found:"
-echo "$FILES"
+cat "$FIND_LIST"
 echo ""
-
-CHANGED_FILES_LIST=""
 
 do_convert() {
   INPUT="$1"
@@ -53,11 +56,10 @@ do_convert() {
     --format "$FMT" \
     -o "$OUTPUT" \
     --url "$EXCALIDRAW_URL"
-  CHANGED_FILES_LIST="${CHANGED_FILES_LIST}${OUTPUT}
-"
+  printf '%s\n' "$OUTPUT" >> "$CHANGED_LIST"
 }
 
-for FILE in $FILES; do
+while IFS= read -r FILE; do
   echo "Processing: $FILE"
   case "$FORMAT" in
     svg)  do_convert "$FILE" svg ;;
@@ -67,9 +69,9 @@ for FILE in $FILES; do
       do_convert "$FILE" png
       ;;
   esac
-done
+done < "$FIND_LIST"
 
-if [ -z "$(printf '%s' "$CHANGED_FILES_LIST" | tr -d '[:space:]')" ]; then
+if [ ! -s "$CHANGED_LIST" ]; then
   echo "No files generated."
   exit 0
 fi
@@ -78,17 +80,16 @@ cd "$WORKSPACE"
 git config user.email "$COMMITTER_EMAIL"
 git config user.name "$COMMITTER_NAME"
 
-printf '%s\n' "$CHANGED_FILES_LIST" | while IFS= read -r F; do
-  [ -n "$F" ] && git add "$F"
-done
+while IFS= read -r F; do
+  git add "$F"
+done < "$CHANGED_LIST"
 
 if git diff --staged --exit-code > /dev/null 2>&1; then
   echo "Nothing to commit (rendered files are already up to date)."
 else
   git commit -m "$COMMIT_MESSAGE"
   if [ -n "$GITHUB_TOKEN" ] && [ -n "$REPO" ]; then
-    git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO}.git"
-    git push
+    git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO}.git" HEAD
     echo "Committed and pushed rendered files."
   else
     echo "No GITHUB_TOKEN/GITHUB_REPOSITORY set — skipping push (local mode)."
