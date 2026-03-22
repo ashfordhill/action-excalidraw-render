@@ -1,20 +1,24 @@
-FROM node:20-slim
+FROM node:20.12.1-bullseye-slim
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
+RUN apt-get -y update && \
+    apt-get -y --no-install-recommends install \
+        bash \
         git \
+        wget \
         ca-certificates && \
-    apt-get clean && \
+    apt-get -y clean && \
+    apt-get -y autoremove && \
     rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
+RUN npx --yes playwright install-deps firefox
 
-COPY src/package*.json ./
+RUN npm install -g excalidraw-brute-export-cli@0.4.0
 
-RUN npm ci --only=production
+RUN npx playwright install firefox
 
-COPY src/ ./
+COPY render.sh /render.sh
+RUN sed -i 's/\r$//' /render.sh && chmod +x /render.sh
 
-RUN chmod +x /app/entrypoint.sh
+WORKDIR /workspace
 
-ENTRYPOINT ["/app/entrypoint.sh"]
+ENTRYPOINT ["/render.sh"]

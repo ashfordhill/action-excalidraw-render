@@ -1,5 +1,5 @@
 name: 'Excalidraw Render'
-description: 'Recursively scan a repository for .excalidraw files and render them to SVG and/or PNG, then commit the results.'
+description: 'Recursively scan a repository for .excalidraw files and render them to SVG and/or PNG using a self-hosted Excalidraw instance, then commit the results.'
 author: 'action-excalidraw-render'
 
 branding:
@@ -28,11 +28,66 @@ inputs:
     default: 'github-actions[bot]@users.noreply.github.com'
 
 runs:
-  using: 'docker'
-  image: 'Dockerfile'
-  env:
-    INPUT_FORMAT: ${{ inputs.format }}
-    INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
-    INPUT_COMMIT_MESSAGE: ${{ inputs.commit-message }}
-    INPUT_COMMITTER_NAME: ${{ inputs.committer-name }}
-    INPUT_COMMITTER_EMAIL: ${{ inputs.committer-email }}
+  using: composite
+  steps:
+    - name: Create isolated Docker network
+      shell: bash
+      run: docker network create excalidraw-net-${{ github.run_id }} || true
+
+    - name: Start self-hosted Excalidraw
+      shell: bash
+      run: |
+        docker run -d \
+          --name excalidraw-app-${{ github.run_id }} \
+          --network excalidraw-net-${{ github.run_id }} \
+          excalidraw/excalidraw:latest
+
+    - name: Wait for Excalidraw to be ready
+      shell: bash
+      run: |
+        echo "Waiting for Excalidraw..."
+        for i in $(seq 1 60); do
+          if docker exec excalidraw-app-${{ github.run_id }} \
+               wget -q --spider http://localhost:80 2>/dev/null; then
+            echo "Excalidraw is ready (attempt $i)"
+            break
+          fi
+          if [ "$i" -eq 60 ]; then
+            echo "Timed out waiting for Excalidraw"
+            docker logs excalidraw-app-${{ github.run_id }}
+            exit 1
+          fi
+          echo "  attempt $i/60..."
+          sleep 3
+        done
+
+    - name: Build renderer image
+      shell: bash
+      run: |
+        docker build \
+          -t excalidraw-renderer-${{ github.run_id }} \
+          ${{ github.action_path }}
+
+    - name: Run renderer
+      shell: bash
+      run: |
+        docker run --rm \
+          --network excalidraw-net-${{ github.run_id }} \
+          -e EXCALIDRAW_BRUTE_EXPORT_CLI_URL=http://excalidraw-app-${{ github.run_id }}:80 \
+          -e INPUT_FORMAT=${{ inputs.format }} \
+          -e INPUT_GITHUB_TOKEN=${{ inputs.github-token }} \
+          -e INPUT_COMMIT_MESSAGE="${{ inputs.commit-message }}" \
+          -e INPUT_COMMITTER_NAME="${{ inputs.committer-name }}" \
+          -e INPUT_COMMITTER_EMAIL="${{ inputs.committer-email }}" \
+          -e GITHUB_WORKSPACE=/workspace \
+          -e GITHUB_REPOSITORY=${{ github.repository }} \
+          -v ${{ github.workspace }}:/workspace \
+          excalidraw-renderer-${{ github.run_id }}
+
+    - name: Cleanup
+      if: always()
+      shell: bash
+      run: |
+        docker rm -f excalidraw-app-${{ github.run_id }} || true
+        docker rmi excalidraw-renderer-${{ github.run_id }} || true
+        docker network rm excalidraw-net-${{ github.run_id }} || true

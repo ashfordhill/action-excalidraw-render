@@ -1,0 +1,28 @@
+services:
+  excalidraw:
+    image: excalidraw/excalidraw:latest
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:80 || exit 1"]
+      interval: 5s
+      timeout: 10s
+      retries: 15
+      start_period: 20s
+
+  renderer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      excalidraw:
+        condition: service_healthy
+    environment:
+      EXCALIDRAW_BRUTE_EXPORT_CLI_URL: "http://excalidraw:80"
+      INPUT_FORMAT: "${INPUT_FORMAT:-svg}"
+      INPUT_GITHUB_TOKEN: "${INPUT_GITHUB_TOKEN:-}"
+      INPUT_COMMIT_MESSAGE: "${INPUT_COMMIT_MESSAGE:-chore: render excalidraw files [skip ci]}"
+      INPUT_COMMITTER_NAME: "${INPUT_COMMITTER_NAME:-github-actions[bot]}"
+      INPUT_COMMITTER_EMAIL: "${INPUT_COMMITTER_EMAIL:-github-actions[bot]@users.noreply.github.com}"
+      GITHUB_WORKSPACE: "/workspace"
+      GITHUB_REPOSITORY: "${GITHUB_REPOSITORY:-}"
+    volumes:
+      - "${GITHUB_WORKSPACE:-.}:/workspace"
