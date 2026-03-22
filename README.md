@@ -1,16 +1,15 @@
 # action-excalidraw-render
 
-Scan `.excalidraw` files in a repository recursively and auto-render them to `.svg` and/or `.png`, then commit the results back — all without using excalidraw.com.
+Recursively scan a repository for `.excalidraw` files and auto-render them to `.svg` and/or `.png` — fully offline, no excalidraw.com required.
 
-![example](./example.svg)
+![test](./test.svg)
 
 ## Usage
 
 ```yaml
-- uses: your-org/action-excalidraw-render@v1
+- uses: ashfordhill/action-excalidraw-render@main
   with:
-    format: 'both'            # svg | png | both  (default: svg)
-    github-token: ${{ secrets.GITHUB_TOKEN }}
+    format: 'svg'   # svg | png | both  (default: svg)
 ```
 
 ### Inputs
@@ -18,14 +17,10 @@ Scan `.excalidraw` files in a repository recursively and auto-render them to `.s
 | Input | Description | Required | Default |
 |---|---|---|---|
 | `format` | Output format: `svg`, `png`, or `both` | No | `svg` |
-| `github-token` | GitHub token for committing rendered files | Yes | — |
-| `commit-message` | Commit message for the render commit | No | `chore: render excalidraw files [skip ci]` |
-| `committer-name` | Git committer name | No | `github-actions[bot]` |
-| `committer-email` | Git committer email | No | `github-actions[bot]@users.noreply.github.com` |
 
 ## Workflow example
 
-The included workflow triggers on any push that modifies a `.excalidraw` file or the workflow file itself:
+Triggers on any push that modifies a `.excalidraw` file or the workflow file itself. The action renders the files; a separate step commits them back.
 
 ```yaml
 # .github/workflows/excalidraw-render.yml
@@ -56,25 +51,40 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: ./
+      - uses: ashfordhill/action-excalidraw-render@main
         with:
           format: ${{ inputs.format || 'svg' }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Commit rendered files
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git add -A
+          git diff --staged --quiet || git commit -m "chore: render excalidraw files [skip ci]"
+          git push
 ```
 
 ## How it works
 
-1. The action is packaged as a **Docker image** so it runs in a fully isolated, reproducible environment.
-2. On startup it recursively searches `GITHUB_WORKSPACE` for all `*.excalidraw` files (skipping `.git` and `node_modules`).
-3. Each file is converted using the **[excalidraw-to-svg](https://github.com/JRJurman/excalidraw-to-svg)** Node.js library, which uses the Excalidraw library with a jsdom DOM — **no browser, no excalidraw.com**.
-4. For PNG output the resulting SVG is rasterised with **[@resvg/resvg-js](https://github.com/yisibl/resvg-js)** (Rust-based, no system dependencies).
-5. All generated files are staged and committed back to the branch using the provided `github-token`.
+1. The action spins up two Docker containers on an isolated network:
+   - **`excalidraw/excalidraw`** — a self-hosted Excalidraw nginx instance
+   - **Renderer** — a Node.js container running [`excalidraw-brute-export-cli`](https://github.com/NicklasHugoy/excalidraw-brute-export-cli) with a headless Firefox (Playwright)
+2. The renderer waits for Excalidraw to become healthy, then recursively finds all `*.excalidraw` files in the workspace (skipping `.git`, `node_modules`).
+3. Each file is uploaded to the local Excalidraw instance via the browser, exported as SVG/PNG through the UI, and saved alongside the source file.
+4. The containers and network are torn down. The workflow step then commits the generated files.
 
-> The `[skip ci]` suffix in the default commit message prevents the render job from triggering itself in an infinite loop.
+> The `[skip ci]` suffix in the default commit message prevents the render job from triggering itself in a loop.
+
+## Local testing
+
+```sh
+INPUT_FORMAT=both docker compose run --rm renderer
+```
+
+The included `docker-compose.yml` starts both containers locally. The rendered files are written to the current directory.
 
 ## Security
 
-This action is fully self-contained:
 - No calls to `excalidraw.com` or any external service.
 - No data leaves your runner.
 - Suitable for air-gapped or enterprise environments.
