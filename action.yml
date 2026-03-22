@@ -11,21 +11,6 @@ inputs:
     description: 'Output format: svg, png, or both'
     required: false
     default: 'svg'
-  github-token:
-    description: 'GitHub token used to commit the rendered files back to the repository'
-    required: true
-  commit-message:
-    description: 'Commit message for the rendered files'
-    required: false
-    default: 'chore: render excalidraw files [skip ci]'
-  committer-name:
-    description: 'Name to use for the git committer'
-    required: false
-    default: 'github-actions[bot]'
-  committer-email:
-    description: 'Email to use for the git committer'
-    required: false
-    default: 'github-actions[bot]@users.noreply.github.com'
 
 runs:
   using: composite
@@ -89,23 +74,13 @@ runs:
       env:
         RUN_ID: ${{ github.run_id }}
         INPUT_FORMAT: ${{ inputs.format }}
-        INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
-        INPUT_COMMIT_MESSAGE: ${{ inputs.commit-message }}
-        INPUT_COMMITTER_NAME: ${{ inputs.committer-name }}
-        INPUT_COMMITTER_EMAIL: ${{ inputs.committer-email }}
         WORKSPACE: ${{ github.workspace }}
-        GITHUB_REPO: ${{ github.repository }}
       run: |
         docker run --rm \
           --network "excalidraw-net-${RUN_ID}" \
           -e "EXCALIDRAW_BRUTE_EXPORT_CLI_URL=http://excalidraw-app-${RUN_ID}:80" \
           -e "INPUT_FORMAT=${INPUT_FORMAT}" \
-          -e "INPUT_GITHUB_TOKEN=${INPUT_GITHUB_TOKEN}" \
-          -e "INPUT_COMMIT_MESSAGE=${INPUT_COMMIT_MESSAGE}" \
-          -e "INPUT_COMMITTER_NAME=${INPUT_COMMITTER_NAME}" \
-          -e "INPUT_COMMITTER_EMAIL=${INPUT_COMMITTER_EMAIL}" \
           -e "GITHUB_WORKSPACE=/workspace" \
-          -e "GITHUB_REPOSITORY=${GITHUB_REPO}" \
           -v "${WORKSPACE}:/workspace" \
           "excalidraw-renderer-${RUN_ID}"
 

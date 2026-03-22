@@ -33,4 +33,11 @@ jobs:
         uses: ./
         with:
           format: ${{ inputs.format || 'svg' }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Commit rendered files
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git add '**/*.svg' '**/*.png'
+          git diff --staged --quiet || git commit -m "chore: render excalidraw files [skip ci]"
+          git push

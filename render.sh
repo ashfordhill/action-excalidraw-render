@@ -2,13 +2,8 @@
 set -e
 
 FORMAT="${INPUT_FORMAT:-svg}"
-GITHUB_TOKEN="${INPUT_GITHUB_TOKEN:-}"
-COMMIT_MESSAGE="${INPUT_COMMIT_MESSAGE:-chore: render excalidraw files [skip ci]}"
-COMMITTER_NAME="${INPUT_COMMITTER_NAME:-github-actions[bot]}"
-COMMITTER_EMAIL="${INPUT_COMMITTER_EMAIL:-github-actions[bot]@users.noreply.github.com}"
 EXCALIDRAW_URL="${EXCALIDRAW_BRUTE_EXPORT_CLI_URL:-http://excalidraw:80}"
 WORKSPACE="${GITHUB_WORKSPACE:-/workspace}"
-REPO="${GITHUB_REPOSITORY:-}"
 
 echo "=== Excalidraw Render ==="
 echo "Format:     $FORMAT"
@@ -38,8 +33,7 @@ case "$FORMAT" in
 esac
 
 FIND_LIST=$(mktemp)
-CHANGED_LIST=$(mktemp)
-trap 'rm -f "$FIND_LIST" "$CHANGED_LIST"' EXIT
+trap 'rm -f "$FIND_LIST"' EXIT
 
 find "$WORKSPACE" \
   \( -path "*/.git" -o -path "*/node_modules" -o -path "*/.zenflow" \) -prune -o \
@@ -70,7 +64,6 @@ do_convert() {
     --format "$FMT" \
     -o "$OUTPUT" \
     --url "$EXCALIDRAW_URL"
-  printf '%s\n' "$OUTPUT" >> "$CHANGED_LIST"
 }
 
 while IFS= read -r FILE; do
@@ -85,27 +78,4 @@ while IFS= read -r FILE; do
   esac
 done < "$FIND_LIST"
 
-if [ ! -s "$CHANGED_LIST" ]; then
-  echo "No files generated."
-  exit 0
-fi
-
-cd "$WORKSPACE"
-git config user.email "$COMMITTER_EMAIL"
-git config user.name "$COMMITTER_NAME"
-
-while IFS= read -r F; do
-  git add "$F"
-done < "$CHANGED_LIST"
-
-if git diff --staged --exit-code > /dev/null 2>&1; then
-  echo "Nothing to commit (rendered files are already up to date)."
-else
-  git commit -m "$COMMIT_MESSAGE"
-  if [ -n "$GITHUB_TOKEN" ] && [ -n "$REPO" ]; then
-    git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO}.git" HEAD
-    echo "Committed and pushed rendered files."
-  else
-    echo "No GITHUB_TOKEN/GITHUB_REPOSITORY set — skipping push (local mode)."
-  fi
-fi
+echo "Done."
