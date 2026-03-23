@@ -1,5 +1,5 @@
 name: 'Excalidraw Render'
-description: 'Recursively scan a repository for .excalidraw files and render them to SVG and/or PNG using a self-hosted Excalidraw instance, then commit the results.'
+description: 'Scan a repository for .excalidraw files and render them to SVG and/or PNG.'
 author: 'action-excalidraw-render'
 
 branding:
