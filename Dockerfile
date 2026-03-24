@@ -10,8 +10,6 @@ RUN apt-get -y update && \
     apt-get -y autoremove && \
     rm -rf /var/lib/apt/lists/*
 
-RUN npm install -g excalidraw-brute-export-cli@0.4.0
-
 RUN node /usr/local/lib/node_modules/excalidraw-brute-export-cli/node_modules/.bin/playwright \
       install-deps firefox
 
