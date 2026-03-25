@@ -34,7 +34,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: ashfordhill/action-excalidraw-render@main
+      - uses: ashfordhill/action-excalidraw-render@v1
         with:
           format: 'svg'
 
